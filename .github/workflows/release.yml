@@ -1,0 +1,38 @@
+name: Release plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, pinned to a verified commit
+        with:
+          persist-credentials: false
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          php tests/validate-release.php
+          php -l wordpress-login-redirect.php
+          php -l includes/github-updater.php
+      - name: Build installable ZIP
+        run: |
+          mkdir -p build/wordpress-login-redirect
+          cp wordpress-login-redirect.php readme.txt README.md build/wordpress-login-redirect/
+          cp -R includes assets build/wordpress-login-redirect/
+          cd build
+          zip -r wordpress-login-redirect.zip wordpress-login-redirect
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" build/wordpress-login-redirect.zip --verify-tag --generate-notes --title "$RELEASE_TAG"
